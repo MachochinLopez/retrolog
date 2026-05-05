@@ -26,7 +26,7 @@ export interface TimeEntry {
 export interface ProjectMapping {
   hint: string;
   alluxiProjectId: string;
-  alluxiTaskId: string;
+  alluxiTag: string;        // Alluxi uses tags not tasks (e.g. "development")
   harvestProjectId: string;
   harvestTaskId: string;
   label: string;

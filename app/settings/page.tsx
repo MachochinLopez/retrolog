@@ -44,7 +44,7 @@ export default function SettingsPage() {
   function addMapping() {
     setMappings(prev => [
       ...prev,
-      { hint: '', alluxiProjectId: '', alluxiTaskId: '', harvestProjectId: '', harvestTaskId: '', label: '' },
+      { hint: '', alluxiProjectId: '', alluxiTag: 'development', harvestProjectId: '', harvestTaskId: '', label: '' },
     ]);
   }
 
@@ -105,14 +105,13 @@ export default function SettingsPage() {
             <div className="grid grid-cols-2 gap-2">
               {(
                 [
-                  ['hint', 'Keyword (e.g. "alluxi-platform")'],
-                  ['label', 'Display label (e.g. "Alluxi — Dev")'],
+                  ['hint', 'Keyword (e.g. "remarkets")'],
+                  ['label', 'Display label (e.g. "ReMarkets")'],
                   ['alluxiProjectId', 'Alluxi Project ID'],
-                  ['alluxiTaskId', 'Alluxi Task ID'],
+                  ['alluxiTag', 'Alluxi Tag (default: development)'],
                   ['harvestProjectId', 'Harvest Project ID'],
                   ['harvestTaskId', 'Harvest Task ID'],
-                ] as [keyof ProjectMapping, string][]
-              ).map(([field, label]) => (
+                ] as [keyof ProjectMapping, string][]).map(([field, label]) => (
                 <div key={field}>
                   <label className="block text-xs text-zinc-400 mb-1">{label}</label>
                   <input

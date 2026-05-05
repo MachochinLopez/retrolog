@@ -5,13 +5,12 @@ export interface AlluxiConfig {
   baseUrl?: string;
 }
 
-// Field names confirmed after curl test — update in api-contracts.md when discovered
 interface AlluxiPayload {
-  project_id: string;
-  task_id?: string;
-  date: string;
+  projectId: string;
+  entryDate: string;  // ISO date string YYYY-MM-DD
   hours: number;
-  description?: string;
+  notes?: string;
+  tag?: string;       // e.g. "development"
 }
 
 export async function submitToAlluxi(
@@ -22,11 +21,11 @@ export async function submitToAlluxi(
   const baseUrl = config.baseUrl ?? 'https://time.alluxi.com';
 
   const payload: AlluxiPayload = {
-    project_id: mapping.alluxiProjectId,
-    task_id: mapping.alluxiTaskId || undefined,
-    date: entry.date,
+    projectId: mapping.alluxiProjectId,
+    entryDate: entry.date,
     hours: entry.hours,
-    description: entry.description,
+    notes: entry.description,
+    tag: mapping.alluxiTag || 'development',
   };
 
   const res = await fetch(`${baseUrl}/api/time-entries`, {
@@ -44,5 +43,5 @@ export async function submitToAlluxi(
   }
 
   const data = await res.json();
-  return String(data.id ?? data.data?.id ?? 'unknown');
+  return String(data.entry?.id ?? data.id ?? 'unknown');
 }

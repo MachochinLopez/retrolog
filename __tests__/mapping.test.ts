@@ -6,7 +6,7 @@ const mappings: ProjectMapping[] = [
   {
     hint: 'alluxi-platform',
     alluxiProjectId: '1',
-    alluxiTaskId: '10',
+    alluxiTag: '10',
     harvestProjectId: '100',
     harvestTaskId: '1000',
     label: 'Alluxi — Platform',
@@ -14,7 +14,7 @@ const mappings: ProjectMapping[] = [
   {
     hint: 'client-x',
     alluxiProjectId: '2',
-    alluxiTaskId: '20',
+    alluxiTag: '20',
     harvestProjectId: '200',
     harvestTaskId: '2000',
     label: 'Client X — Dev',
