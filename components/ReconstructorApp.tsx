@@ -1,0 +1,307 @@
+'use client';
+
+import { useState, useCallback } from 'react';
+import { format, startOfMonth, endOfMonth, subMonths } from 'date-fns';
+import { TimelineReview } from './TimelineReview';
+import { NONWORKING_CACHE_KEY, TOKENS_KEY, DEFAULT_MAPPINGS_KEY } from '@/lib/mapping';
+import type {
+  TimeEntry,
+  ProjectMapping,
+  NonWorkingDay,
+  NonWorkingDaysCache,
+  SubmitResult,
+} from '@/lib/types';
+
+type Phase = 'idle' | 'reconstructing' | 'review' | 'submitting' | 'done';
+
+function loadFromStorage<T>(key: string): T | null {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as T) : null;
+  } catch {
+    return null;
+  }
+}
+
+function getMonthRange(offset: number): { from: string; to: string; label: string } {
+  const base = offset === 0 ? new Date() : subMonths(new Date(), -offset);
+  const target = subMonths(new Date(), Math.abs(offset));
+  const d = offset <= 0 ? target : base;
+  return {
+    from: format(startOfMonth(d), 'yyyy-MM-dd'),
+    to: format(endOfMonth(d), 'yyyy-MM-dd'),
+    label: format(d, 'MMMM yyyy'),
+  };
+}
+
+export function ReconstructorApp() {
+  const [monthOffset, setMonthOffset] = useState(0); // 0 = this month, -1 = last month, etc.
+  const [phase, setPhase] = useState<Phase>('idle');
+  const [entries, setEntries] = useState<TimeEntry[]>([]);
+  const [workingDays, setWorkingDays] = useState<string[]>([]);
+  const [nonWorkingDays, setNonWorkingDays] = useState<NonWorkingDay[]>([]);
+  const [submitResults, setSubmitResults] = useState<SubmitResult[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  const range = getMonthRange(monthOffset);
+  const mappings: ProjectMapping[] =
+    loadFromStorage<ProjectMapping[]>(DEFAULT_MAPPINGS_KEY) ?? [];
+
+  // Get non-working days for the current range from cache
+  function getNonWorkingForRange(): NonWorkingDay[] {
+    const cache = loadFromStorage<NonWorkingDaysCache>(NONWORKING_CACHE_KEY);
+    if (!cache) return [];
+    return cache.days.filter(d => d.date >= range.from && d.date <= range.to);
+  }
+
+  async function handleReconstruct() {
+    setError(null);
+    setPhase('reconstructing');
+
+    const nwd = getNonWorkingForRange();
+    setNonWorkingDays(nwd);
+
+    const tokens = loadFromStorage<Record<string, string>>(TOKENS_KEY) ?? {};
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (tokens.githubToken) headers['x-github-token'] = tokens.githubToken;
+
+    try {
+      const res = await fetch('/api/reconstruct', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          range: { from: range.from, to: range.to },
+          nonWorkingDays: nwd,
+          githubUsername: tokens.githubUsername,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Reconstruction failed');
+
+      setEntries(data.entries);
+      setWorkingDays(data.workingDays);
+      setPhase('review');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unknown error');
+      setPhase('idle');
+    }
+  }
+
+  const handleUpdate = useCallback(
+    (id: string, field: keyof TimeEntry, value: string | number) => {
+      setEntries(prev =>
+        prev.map(e => (e.id === id ? { ...e, [field]: value } : e))
+      );
+    },
+    []
+  );
+
+  const handleDelete = useCallback((id: string) => {
+    setEntries(prev => prev.filter(e => e.id !== id));
+  }, []);
+
+  const handleAddRow = useCallback((date: string) => {
+    const newEntry: TimeEntry = {
+      id: `${date}-${Date.now()}`,
+      date,
+      description: '',
+      hours: 0,
+      projectHint: '',
+      sourceType: 'pr',
+    };
+    setEntries(prev => {
+      // Insert after the last entry for this date
+      const lastIdx = prev.map(e => e.date).lastIndexOf(date);
+      const next = [...prev];
+      next.splice(lastIdx + 1, 0, newEntry);
+      return next;
+    });
+  }, []);
+
+  async function handleSubmit() {
+    setPhase('submitting');
+    const tokens = loadFromStorage<Record<string, string>>(TOKENS_KEY) ?? {};
+    const results: SubmitResult[] = [];
+
+    for (const entry of entries) {
+      const mapping = mappings.find(m =>
+        entry.projectHint.toLowerCase().includes(m.hint.toLowerCase())
+      );
+      if (!mapping) continue;
+
+      // Submit to Alluxi
+      if (tokens.alluxiToken) {
+        try {
+          const res = await fetch('/api/submit/alluxi', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-alluxi-token': tokens.alluxiToken,
+            },
+            body: JSON.stringify({ entry, mapping }),
+          });
+          const data = await res.json();
+          results.push({
+            target: 'alluxi',
+            entryId: entry.id,
+            success: data.success,
+            error: data.error,
+          });
+        } catch (err) {
+          results.push({
+            target: 'alluxi',
+            entryId: entry.id,
+            success: false,
+            error: err instanceof Error ? err.message : 'Unknown error',
+          });
+        }
+      }
+
+      // Submit to Harvest
+      if (tokens.harvestToken && tokens.harvestAccountId) {
+        try {
+          const res = await fetch('/api/submit/harvest', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-harvest-token': tokens.harvestToken,
+              'x-harvest-account-id': tokens.harvestAccountId,
+            },
+            body: JSON.stringify({ entry, mapping }),
+          });
+          const data = await res.json();
+          results.push({
+            target: 'harvest',
+            entryId: entry.id,
+            success: data.success,
+            error: data.error,
+          });
+        } catch (err) {
+          results.push({
+            target: 'harvest',
+            entryId: entry.id,
+            success: false,
+            error: err instanceof Error ? err.message : 'Unknown error',
+          });
+        }
+      }
+    }
+
+    setSubmitResults(results);
+    setPhase('done');
+  }
+
+  const failed = submitResults.filter(r => !r.success);
+  const succeeded = submitResults.filter(r => r.success);
+
+  return (
+    <div className="max-w-3xl mx-auto px-4 py-8">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-8">
+        <h1 className="text-xl font-semibold tracking-tight text-brand">retrolog</h1>
+        <a href="/settings" className="text-sm text-zinc-400 hover:text-zinc-600">
+          settings
+        </a>
+      </div>
+
+      {/* Month picker */}
+      <div className="flex items-center gap-4 mb-6">
+        <button
+          onClick={() => setMonthOffset(o => o - 1)}
+          className="text-zinc-400 hover:text-zinc-600 px-2"
+          disabled={phase === 'reconstructing' || phase === 'submitting'}
+        >
+          ←
+        </button>
+        <span className="text-base font-medium w-36 text-center">{range.label}</span>
+        <button
+          onClick={() => setMonthOffset(o => Math.min(o + 1, 0))}
+          className="text-zinc-400 hover:text-zinc-600 px-2 disabled:opacity-30"
+          disabled={monthOffset >= 0 || phase === 'reconstructing' || phase === 'submitting'}
+        >
+          →
+        </button>
+      </div>
+
+      {/* Error banner */}
+      {error && (
+        <div className="mb-4 px-4 py-2 bg-red-50 border border-red-200 text-red-700 text-sm rounded">
+          {error}
+        </div>
+      )}
+
+      {/* Actions */}
+      {(phase === 'idle' || phase === 'review') && (
+        <button
+          onClick={handleReconstruct}
+          className="mb-6 px-4 py-2 bg-brand text-white text-sm font-medium rounded hover:bg-brand-hover"
+        >
+          Reconstruct {range.label}
+        </button>
+      )}
+
+      {phase === 'reconstructing' && (
+        <p className="mb-6 text-sm text-zinc-500">Analyzing your work activity…</p>
+      )}
+
+      {/* Review table */}
+      {phase === 'review' && entries.length > 0 && (
+        <>
+          <TimelineReview
+            entries={entries}
+            workingDays={workingDays}
+            nonWorkingDays={nonWorkingDays}
+            mappings={mappings}
+            onUpdate={handleUpdate}
+            onDelete={handleDelete}
+            onAddRow={handleAddRow}
+          />
+          <div className="mt-4 flex gap-3">
+            <button
+              onClick={handleSubmit}
+              className="px-4 py-2 bg-brand text-white text-sm font-medium rounded hover:bg-brand-hover"
+            >
+              Submit to All
+            </button>
+            <button
+              onClick={handleReconstruct}
+              className="px-4 py-2 text-sm text-zinc-500 border border-zinc-200 rounded hover:bg-zinc-50"
+            >
+              Re-reconstruct
+            </button>
+          </div>
+        </>
+      )}
+
+      {phase === 'submitting' && (
+        <p className="text-sm text-zinc-500">Submitting entries…</p>
+      )}
+
+      {/* Done */}
+      {phase === 'done' && (
+        <div>
+          <div className="mb-4 text-sm">
+            <span className="text-green-600 font-medium">{succeeded.length} submitted</span>
+            {failed.length > 0 && (
+              <span className="text-red-500 font-medium ml-3">{failed.length} failed</span>
+            )}
+          </div>
+          {failed.length > 0 && (
+            <ul className="mb-4 text-xs text-red-500 space-y-1">
+              {failed.map((r, i) => (
+                <li key={i}>{r.target}: {r.error}</li>
+              ))}
+            </ul>
+          )}
+          <button
+            onClick={() => { setPhase('idle'); setEntries([]); }}
+            className="px-4 py-2 text-sm text-zinc-500 border border-zinc-200 rounded hover:bg-zinc-50"
+          >
+            Start over
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
