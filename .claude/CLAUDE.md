@@ -28,7 +28,8 @@ lib/mapping.ts        — findMapping, applyMappings, localStorage key constants
 lib/claude.ts         — reconstructTimeline (calls Claude API)
 lib/alluxi.ts         — submitToAlluxi
 lib/harvest.ts        — submitToHarvest
-lib/adapters/github.ts — fetchGithubActivity
+lib/adapters/azure-devops.ts — fetchAzureDevOpsActivity (primary source; parsePullRequests pure fn tested)
+lib/adapters/github.ts — fetchGithubActivity (optional secondary)
 app/api/reconstruct/  — orchestrates sources → Claude → JSON
 app/api/submit/       — alluxi/ and harvest/ submission routes
 components/ReconstructorApp.tsx — main client component, all app state
@@ -40,7 +41,9 @@ app/settings/page.tsx — token + project mapping config
 ## Token passing (Phase 1)
 Tokens stored in `localStorage` under key `retrolog-tokens` (see `lib/mapping.ts`).
 Client reads them and passes as request headers to API routes:
-- `x-github-token`, `x-alluxi-token`, `x-harvest-token`, `x-harvest-account-id`
+- `x-azure-token`, `x-azure-org`, `x-azure-project`, `x-azure-user-email` (Azure DevOps — primary)
+- `x-alluxi-token`, `x-harvest-token`, `x-harvest-account-id` (submission targets)
+- `x-github-token` (optional secondary — not shown in settings UI)
 
 ## Open unknowns
 - Alluxi POST body field names — see `.claude/docs/api-contracts.md`

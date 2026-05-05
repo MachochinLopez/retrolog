@@ -24,10 +24,17 @@
 - [x] `.claude/` docs structure
 
 ### TODO (Phase 1 completion)
-- [ ] Discover Alluxi POST body schema (curl test with real PAT) → update `api-contracts.md` + `lib/alluxi.ts`
-- [ ] Run tests: `npm test`
-- [ ] Run dev server and verify UI renders: `npm run dev`
-- [ ] End-to-end test with real GitHub PAT for a known past month
+- [x] Discover Alluxi POST body schema → updated `api-contracts.md` + `lib/alluxi.ts`
+- [x] Discover Alluxi DELETE endpoint: `DELETE /api/time-entries?id={entryId}` → added `deleteAlluxiEntry`
+- [x] Confirm Harvest POST + DELETE working
+- [x] Run tests: `npm test` — 27 passing
+- [x] Dev server renders; TypeScript clean
+- [x] Build Azure DevOps adapter (`lib/adapters/azure-devops.ts`) — primary source, 10 tests
+- [x] Azure DevOps wired into reconstruct route (primary), GitHub kept as optional secondary
+- [x] Settings UI updated: Azure DevOps section (PAT, org, project, email), GitHub removed
+- [ ] Set Azure DevOps PAT + org + project + email in Settings UI
+- [ ] Set project mappings in Settings UI: ReMarkets→Alluxi `cmoaftn5f000004kvu7vnkkcl`, Harvest `47980995`
+- [ ] End-to-end test: reconstruct a known past month with real Azure DevOps data
 
 ## Phase 2 — More sources
 - [ ] Google Calendar adapter (OAuth2, holiday detection)

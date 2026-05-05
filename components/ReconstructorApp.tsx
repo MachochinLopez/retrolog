@@ -1,7 +1,12 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { format, startOfMonth, endOfMonth, subMonths } from 'date-fns';
+import {
+  format,
+  startOfMonth, endOfMonth, addMonths,
+  startOfWeek, endOfWeek, addWeeks,
+  addDays,
+} from 'date-fns';
 import { TimelineReview } from './TimelineReview';
 import { NONWORKING_CACHE_KEY, TOKENS_KEY, DEFAULT_MAPPINGS_KEY } from '@/lib/mapping';
 import type {
@@ -13,6 +18,7 @@ import type {
 } from '@/lib/types';
 
 type Phase = 'idle' | 'reconstructing' | 'review' | 'submitting' | 'done';
+type RangeMode = 'day' | 'week' | 'month';
 
 function loadFromStorage<T>(key: string): T | null {
   try {
@@ -23,10 +29,24 @@ function loadFromStorage<T>(key: string): T | null {
   }
 }
 
-function getMonthRange(offset: number): { from: string; to: string; label: string } {
-  const base = offset === 0 ? new Date() : subMonths(new Date(), -offset);
-  const target = subMonths(new Date(), Math.abs(offset));
-  const d = offset <= 0 ? target : base;
+function getRange(mode: RangeMode, offset: number): { from: string; to: string; label: string } {
+  const base = new Date();
+  if (mode === 'day') {
+    const d = addDays(base, offset);
+    const s = format(d, 'yyyy-MM-dd');
+    return { from: s, to: s, label: format(d, 'EEE, MMM d yyyy') };
+  }
+  if (mode === 'week') {
+    const d = addWeeks(base, offset);
+    const start = startOfWeek(d, { weekStartsOn: 1 });
+    const end = endOfWeek(d, { weekStartsOn: 1 });
+    return {
+      from: format(start, 'yyyy-MM-dd'),
+      to: format(end, 'yyyy-MM-dd'),
+      label: `${format(start, 'MMM d')} – ${format(end, 'MMM d, yyyy')}`,
+    };
+  }
+  const d = addMonths(base, offset);
   return {
     from: format(startOfMonth(d), 'yyyy-MM-dd'),
     to: format(endOfMonth(d), 'yyyy-MM-dd'),
@@ -35,7 +55,8 @@ function getMonthRange(offset: number): { from: string; to: string; label: strin
 }
 
 export function ReconstructorApp() {
-  const [monthOffset, setMonthOffset] = useState(0); // 0 = this month, -1 = last month, etc.
+  const [mode, setMode] = useState<RangeMode>('week');
+  const [offset, setOffset] = useState(0);
   const [phase, setPhase] = useState<Phase>('idle');
   const [entries, setEntries] = useState<TimeEntry[]>([]);
   const [workingDays, setWorkingDays] = useState<string[]>([]);
@@ -43,7 +64,7 @@ export function ReconstructorApp() {
   const [submitResults, setSubmitResults] = useState<SubmitResult[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  const range = getMonthRange(monthOffset);
+  const range = getRange(mode, offset);
   const mappings: ProjectMapping[] =
     loadFromStorage<ProjectMapping[]>(DEFAULT_MAPPINGS_KEY) ?? [];
 
@@ -63,7 +84,10 @@ export function ReconstructorApp() {
 
     const tokens = loadFromStorage<Record<string, string>>(TOKENS_KEY) ?? {};
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (tokens.githubToken) headers['x-github-token'] = tokens.githubToken;
+    if (tokens.azureToken) headers['x-azure-token'] = tokens.azureToken;
+    if (tokens.azureOrg) headers['x-azure-org'] = tokens.azureOrg;
+    if (tokens.azureProject) headers['x-azure-project'] = tokens.azureProject;
+    if (tokens.azureUserEmail) headers['x-azure-user-email'] = tokens.azureUserEmail;
 
     try {
       const res = await fetch('/api/reconstruct', {
@@ -72,7 +96,6 @@ export function ReconstructorApp() {
         body: JSON.stringify({
           range: { from: range.from, to: range.to },
           nonWorkingDays: nwd,
-          githubUsername: tokens.githubUsername,
         }),
       });
 
@@ -205,23 +228,41 @@ export function ReconstructorApp() {
         </a>
       </div>
 
-      {/* Month picker */}
-      <div className="flex items-center gap-4 mb-6">
-        <button
-          onClick={() => setMonthOffset(o => o - 1)}
-          className="text-zinc-400 hover:text-zinc-600 px-2"
-          disabled={phase === 'reconstructing' || phase === 'submitting'}
-        >
-          ←
-        </button>
-        <span className="text-base font-medium w-36 text-center">{range.label}</span>
-        <button
-          onClick={() => setMonthOffset(o => Math.min(o + 1, 0))}
-          className="text-zinc-400 hover:text-zinc-600 px-2 disabled:opacity-30"
-          disabled={monthOffset >= 0 || phase === 'reconstructing' || phase === 'submitting'}
-        >
-          →
-        </button>
+      {/* Range mode + navigator */}
+      <div className="flex items-center gap-6 mb-6">
+        <div className="flex gap-1 text-sm">
+          {(['day', 'week', 'month'] as RangeMode[]).map(m => (
+            <button
+              key={m}
+              onClick={() => { setMode(m); setOffset(0); }}
+              className={`px-3 py-1 rounded capitalize ${
+                mode === m
+                  ? 'bg-brand text-white'
+                  : 'text-zinc-400 hover:text-zinc-600'
+              }`}
+              disabled={phase === 'reconstructing' || phase === 'submitting'}
+            >
+              {m}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setOffset(o => o - 1)}
+            className="text-zinc-400 hover:text-zinc-600 px-1"
+            disabled={phase === 'reconstructing' || phase === 'submitting'}
+          >
+            ←
+          </button>
+          <span className="text-sm font-medium w-48 text-center">{range.label}</span>
+          <button
+            onClick={() => setOffset(o => Math.min(o + 1, 0))}
+            className="text-zinc-400 hover:text-zinc-600 px-1 disabled:opacity-30"
+            disabled={offset >= 0 || phase === 'reconstructing' || phase === 'submitting'}
+          >
+            →
+          </button>
+        </div>
       </div>
 
       {/* Error banner */}

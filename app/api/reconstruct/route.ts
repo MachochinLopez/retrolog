@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { fetchGithubActivity } from '@/lib/adapters/github';
+import { fetchAzureDevOpsActivity } from '@/lib/adapters/azure-devops';
 import { reconstructTimeline } from '@/lib/claude';
 import { getWorkingDays, groupByDate } from '@/lib/reconstruction';
 import type { ReconstructRequest, Activity } from '@/lib/types';
@@ -9,6 +10,10 @@ export async function POST(req: NextRequest) {
     const body: ReconstructRequest = await req.json();
     const { range, nonWorkingDays, githubUsername } = body;
 
+    const azureToken = req.headers.get('x-azure-token');
+    const azureOrg = req.headers.get('x-azure-org');
+    const azureProject = req.headers.get('x-azure-project');
+    const azureUserEmail = req.headers.get('x-azure-user-email');
     const githubToken = req.headers.get('x-github-token');
 
     const workingDays = getWorkingDays(range, nonWorkingDays);
@@ -19,7 +24,23 @@ export async function POST(req: NextRequest) {
     const allActivities: Activity[] = [];
     const sourcesUsed: string[] = [];
 
-    // GitHub — only if token + username provided
+    // Azure DevOps — primary source
+    if (azureToken && azureOrg && azureProject) {
+      try {
+        const azureActivity = await fetchAzureDevOpsActivity(range, {
+          pat: azureToken,
+          org: azureOrg,
+          project: azureProject,
+          userEmail: azureUserEmail ?? undefined,
+        });
+        allActivities.push(...azureActivity);
+        sourcesUsed.push('azure-devops');
+      } catch (err) {
+        console.error('Azure DevOps fetch failed:', err);
+      }
+    }
+
+    // GitHub — optional secondary source
     if (githubToken && githubUsername) {
       try {
         const ghActivity = await fetchGithubActivity(range, {
@@ -30,7 +51,6 @@ export async function POST(req: NextRequest) {
         sourcesUsed.push('github');
       } catch (err) {
         console.error('GitHub fetch failed:', err);
-        // non-fatal — continue without GitHub
       }
     }
 

@@ -5,16 +5,20 @@ import { TOKENS_KEY, DEFAULT_MAPPINGS_KEY } from '@/lib/mapping';
 import type { ProjectMapping } from '@/lib/types';
 
 interface Tokens {
-  githubToken: string;
-  githubUsername: string;
+  azureToken: string;
+  azureOrg: string;
+  azureProject: string;
+  azureUserEmail: string;
   alluxiToken: string;
   harvestToken: string;
   harvestAccountId: string;
 }
 
 const DEFAULT_TOKENS: Tokens = {
-  githubToken: '',
-  githubUsername: '',
+  azureToken: '',
+  azureOrg: '',
+  azureProject: '',
+  azureUserEmail: '',
   alluxiToken: '',
   harvestToken: '',
   harvestAccountId: '',
@@ -67,15 +71,37 @@ export default function SettingsPage() {
         <a href="/" className="text-sm text-zinc-400 hover:text-zinc-600">← back</a>
       </div>
 
-      <h2 className="text-sm font-semibold text-zinc-500 uppercase tracking-wide mb-4">Tokens</h2>
+      <h2 className="text-sm font-semibold text-zinc-500 uppercase tracking-wide mb-4">Azure DevOps</h2>
 
       <div className="space-y-3 mb-8">
         {(
           [
-            ['githubToken', 'GitHub Token (PAT)', 'ghp_…'],
-            ['githubUsername', 'GitHub Username', 'octocat'],
-            ['alluxiToken', 'Alluxi Token (PAT)', 'Bearer …'],
-            ['harvestToken', 'Harvest Token', 'Bearer …'],
+            ['azureToken', 'Azure PAT', 'Personal Access Token'],
+            ['azureOrg', 'Organization', 'e.g. alluxi'],
+            ['azureProject', 'Project', 'e.g. remarkets'],
+            ['azureUserEmail', 'Your Email (filter PRs)', 'oscar@alluxi.com'],
+          ] as [keyof Tokens, string, string][]
+        ).map(([key, label, placeholder]) => (
+          <div key={key}>
+            <label className="block text-xs text-zinc-400 mb-1">{label}</label>
+            <input
+              type={key === 'azureToken' ? 'password' : 'text'}
+              className="w-full border border-zinc-200 rounded px-3 py-1.5 text-sm outline-none focus:border-brand"
+              placeholder={placeholder}
+              value={tokens[key]}
+              onChange={e => updateToken(key, e.target.value)}
+            />
+          </div>
+        ))}
+      </div>
+
+      <h2 className="text-sm font-semibold text-zinc-500 uppercase tracking-wide mb-4">Submission Targets</h2>
+
+      <div className="space-y-3 mb-8">
+        {(
+          [
+            ['alluxiToken', 'Alluxi Token (PAT)', 'axk_…'],
+            ['harvestToken', 'Harvest Token', '2976238.pt…'],
             ['harvestAccountId', 'Harvest Account ID', '1234567'],
           ] as [keyof Tokens, string, string][]
         ).map(([key, label, placeholder]) => (

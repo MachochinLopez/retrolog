@@ -7,6 +7,9 @@ Auth: `Authorization: Bearer $PAT`
 ### GET /api/time-entries?weekDate=YYYY-MM-DD
 Returns `{ entries: [...] }` for the week containing weekDate.
 
+### DELETE /api/time-entries?id={entryId}
+Returns `{ "success": true }` on 200. ID passed as query param (not path segment).
+
 ### POST /api/time-entries
 ```json
 {

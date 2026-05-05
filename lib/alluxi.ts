@@ -45,3 +45,18 @@ export async function submitToAlluxi(
   const data = await res.json();
   return String(data.entry?.id ?? data.id ?? 'unknown');
 }
+
+export async function deleteAlluxiEntry(
+  entryId: string,
+  config: AlluxiConfig
+): Promise<void> {
+  const baseUrl = config.baseUrl ?? 'https://time.alluxi.com';
+  const res = await fetch(`${baseUrl}/api/time-entries?id=${entryId}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${config.token}` },
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Alluxi DELETE ${res.status}: ${body}`);
+  }
+}
