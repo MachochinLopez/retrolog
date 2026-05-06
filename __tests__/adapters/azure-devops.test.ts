@@ -1,5 +1,36 @@
 import { describe, it, expect } from 'vitest';
-import { parsePullRequests, parseCommits } from '../../lib/adapters/azure-devops';
+import { parsePullRequests, parseCommits, extractTicketRef } from '../../lib/adapters/azure-devops';
+
+describe('extractTicketRef', () => {
+  it('handles AB# format', () => {
+    const r = extractTicketRef('AB#1478 Fix auth bug');
+    expect(r).toEqual({ id: '1478', cleanTitle: 'Fix auth bug' });
+  });
+  it('handles bracketed format', () => {
+    const r = extractTicketRef('[1478] Fix auth bug');
+    expect(r).toEqual({ id: '1478', cleanTitle: 'Fix auth bug' });
+  });
+  it('handles leading number with colon', () => {
+    const r = extractTicketRef('1478: Fix auth bug');
+    expect(r).toEqual({ id: '1478', cleanTitle: 'Fix auth bug' });
+  });
+  it('handles leading number with dash', () => {
+    const r = extractTicketRef('1478 - Fix auth bug');
+    expect(r).toEqual({ id: '1478', cleanTitle: 'Fix auth bug' });
+  });
+  it('handles inline hash ref', () => {
+    const r = extractTicketRef('Fix auth bug #1478');
+    expect(r).toEqual({ id: '1478', cleanTitle: 'Fix auth bug' });
+  });
+  it('returns null id when no ticket found', () => {
+    const r = extractTicketRef('Fix auth bug');
+    expect(r).toEqual({ id: null, cleanTitle: 'Fix auth bug' });
+  });
+  it('ignores short numbers to avoid false positives', () => {
+    const r = extractTicketRef('Fix #12 typo');
+    expect(r.id).toBeNull();
+  });
+});
 
 const range = { from: '2026-04-01', to: '2026-04-30' };
 const org = 'alluxi';

@@ -43,6 +43,39 @@ function basicAuth(pat: string): string {
   return `Basic ${Buffer.from(':' + pat).toString('base64')}`;
 }
 
+export function extractTicketRef(title: string): { id: string | null; cleanTitle: string } {
+  let m: RegExpMatchArray | null;
+
+  // Azure Boards link: "AB#1478 Fix auth" (anywhere in string)
+  m = title.match(/\bAB#(\d+)\b/i);
+  if (m) {
+    const clean = title.replace(m[0], '').replace(/^[-:\s]+|[-:\s]+$/, '').trim();
+    return { id: m[1], cleanTitle: clean || title };
+  }
+
+  // Already bracketed: "[1478] Fix auth"
+  m = title.match(/^\[(\d{3,6})\]\s*(.+)/);
+  if (m) return { id: m[1], cleanTitle: m[2].trim() };
+
+  // Leading number with separator: "1478: Fix auth" or "1478 - Fix auth"
+  m = title.match(/^(\d{3,6})[:\s–-]+(.+)/);
+  if (m) return { id: m[1], cleanTitle: m[2].trim() };
+
+  // Inline hash ref: "#1478" (not at word boundary to avoid false positives on short nums)
+  m = title.match(/(?<!\w)#(\d{3,6})\b/);
+  if (m) {
+    const clean = title.replace(m[0], '').replace(/^[-:\s]+|[-:\s]+$/, '').trim();
+    return { id: m[1], cleanTitle: clean || title };
+  }
+
+  return { id: null, cleanTitle: title };
+}
+
+function formatTitle(raw: string): string {
+  const { id, cleanTitle } = extractTicketRef(raw);
+  return id ? `[${id}] ${cleanTitle}` : cleanTitle;
+}
+
 function prWebUrl(org: string, project: string, repoName: string, prId: number): string {
   return `https://dev.azure.com/${org}/${project}/_git/${repoName}/pullrequest/${prId}`;
 }
@@ -84,7 +117,7 @@ export function parsePullRequests(
     .map(pr => ({
       date: pr.closedDate!.split('T')[0],
       type: 'pr' as const,
-      title: pr.title,
+      title: formatTitle(pr.title),
       projectHint: pr.repository.name,
       url: prWebUrl(org, project, pr.repository.name, pr.pullRequestId),
     }));
@@ -117,7 +150,7 @@ export function parseCommits(
     // Take up to 3 commit messages as context, join with " / "
     const messages = group
       .slice(0, 3)
-      .map(c => c.comment.split('\n')[0].trim())
+      .map(c => formatTitle(c.comment.split('\n')[0].trim()))
       .filter(Boolean);
     const title = messages.join(' / ') + (group.length > 3 ? ` (+${group.length - 3} more)` : '');
     activities.push({
