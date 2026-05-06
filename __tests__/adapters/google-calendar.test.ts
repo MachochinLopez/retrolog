@@ -31,7 +31,6 @@ describe('parseHolidayEvents', () => {
 
   it('skips events with no start date', () => {
     const result = parseHolidayEvents([
-      // @ts-expect-error intentional bad data
       { id: '1', summary: 'Bad', start: {} },
       { id: '2', summary: 'Good', start: { date: '2025-12-25' } },
     ]);

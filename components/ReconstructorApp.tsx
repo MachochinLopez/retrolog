@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import {
   format,
   startOfMonth, endOfMonth, addMonths,
@@ -17,6 +17,7 @@ import type {
   SubmitResult,
   SourceStatus,
 } from '@/lib/types';
+import type { DaySummary } from '@/app/api/existing-entries/route';
 
 type Phase = 'idle' | 'reconstructing' | 'review' | 'submitting' | 'done';
 type RangeMode = 'day' | 'week' | 'month';
@@ -76,6 +77,8 @@ export function ReconstructorApp() {
   const [sources, setSources] = useState<SourceStatus[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [restoredAt, setRestoredAt] = useState<string | null>(null);
+  const [existingByDate, setExistingByDate] = useState<Record<string, DaySummary>>({});
+  const existingFetchRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     const session = loadFromStorage<SessionData>(SESSION_KEY);
@@ -92,6 +95,29 @@ export function ReconstructorApp() {
   }, []);
 
   const range = getRange(mode, offset);
+
+  useEffect(() => {
+    existingFetchRef.current?.abort();
+    const controller = new AbortController();
+    existingFetchRef.current = controller;
+
+    const tokens = loadFromStorage<Record<string, string>>(TOKENS_KEY) ?? {};
+    const headers: Record<string, string> = {};
+    if (tokens.alluxiToken) headers['x-alluxi-token'] = tokens.alluxiToken;
+    if (tokens.harvestToken) headers['x-harvest-token'] = tokens.harvestToken;
+    if (tokens.harvestAccountId) headers['x-harvest-account-id'] = tokens.harvestAccountId;
+
+    fetch(`/api/existing-entries?from=${range.from}&to=${range.to}`, {
+      headers,
+      signal: controller.signal,
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data?.byDate) setExistingByDate(data.byDate); })
+      .catch(() => {});
+
+    return () => controller.abort();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, offset]);
   const mappings: ProjectMapping[] =
     loadFromStorage<ProjectMapping[]>(DEFAULT_MAPPINGS_KEY) ?? [];
 
@@ -300,6 +326,37 @@ export function ReconstructorApp() {
           </button>
         </div>
       </div>
+
+      {/* Already logged panel */}
+      {Object.keys(existingByDate).length > 0 && (
+        <div className="mb-4">
+          <p className="text-xs text-zinc-400 mb-2 uppercase tracking-wide font-semibold">Already logged</p>
+          <div className="border border-zinc-200 rounded overflow-hidden">
+            {Object.entries(existingByDate)
+              .sort(([a], [b]) => a.localeCompare(b))
+              .map(([date, s]) => {
+                const alluxiFull = s.alluxiHours >= 8;
+                const harvestFull = s.harvestHours >= 8;
+                const bothFull = alluxiFull && harvestFull;
+                return (
+                  <div key={date} className="flex items-center gap-4 px-4 py-2 border-b border-zinc-100 last:border-b-0 text-sm">
+                    <span className="font-mono text-xs text-zinc-400 w-24 shrink-0">{date}</span>
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${s.alluxiHours > 0 ? (alluxiFull ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700') : 'bg-zinc-100 text-zinc-400'}`}>
+                      Alluxi {s.alluxiHours > 0 ? `${s.alluxiHours}h` : '—'}
+                    </span>
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${s.harvestHours > 0 ? (harvestFull ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700') : 'bg-zinc-100 text-zinc-400'}`}>
+                      Harvest {s.harvestHours > 0 ? `${s.harvestHours}h` : '—'}
+                    </span>
+                    {bothFull && <span className="text-xs text-green-600 ml-auto">✓ full day</span>}
+                    {!bothFull && (s.alluxiHours > 0 || s.harvestHours > 0) && (
+                      <span className="text-xs text-yellow-600 ml-auto">partial</span>
+                    )}
+                  </div>
+                );
+              })}
+          </div>
+        </div>
+      )}
 
       {/* Non-working days in range */}
       {(() => {

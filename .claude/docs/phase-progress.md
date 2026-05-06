@@ -31,8 +31,8 @@
 - [x] End-to-end: reconstruct April 2026 → review → submit to both platforms → verify in dashboards
 
 ## Phase 1.5 — Enhancements (post-submit, pre-Phase 2)
-- [ ] Pull existing entries from Alluxi + Harvest APIs before reconstruct — diff against them to avoid duplicate submission. Show "already logged" indicator per day in UI.
-- [ ] Free date range selection — allow any date (including future). Note: future dates won't have source activity; user is responsible for that. No validation gate.
+- [x] Pull existing entries from Alluxi + Harvest APIs before reconstruct — `app/api/existing-entries/route.ts` aggregates both; main UI shows "Already logged" panel per day (green=8h, yellow=partial) auto-refreshing on range change
+- [x] Free date range selection — allow any date (including future). Note: future dates won't have source activity; user is responsible for that. No validation gate.
 - [ ] Week roadmap / calendar visualizer — shows which days × which projects have time registered in both Alluxi and Harvest. Read-only overview, not edit surface.
 
 ## Phase 2 — More sources
