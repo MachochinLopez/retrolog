@@ -292,14 +292,25 @@ export function ReconstructorApp() {
           </button>
           <span className="text-sm font-medium w-48 text-center">{range.label}</span>
           <button
-            onClick={() => setOffset(o => Math.min(o + 1, 0))}
+            onClick={() => setOffset(o => o + 1)}
             className="text-zinc-400 hover:text-zinc-600 px-1 disabled:opacity-30"
-            disabled={offset >= 0 || phase === 'reconstructing' || phase === 'submitting'}
+            disabled={phase === 'reconstructing' || phase === 'submitting'}
           >
             →
           </button>
         </div>
       </div>
+
+      {/* Non-working days in range */}
+      {(() => {
+        const nwdInRange = getNonWorkingForRange();
+        return nwdInRange.length > 0 ? (
+          <div className="mb-4 px-4 py-2 bg-zinc-50 border border-zinc-200 text-zinc-500 text-xs rounded">
+            Skipping {nwdInRange.length} non-working day{nwdInRange.length > 1 ? 's' : ''}:{' '}
+            {nwdInRange.map(d => `${d.date} (${d.reason})`).join(', ')}
+          </div>
+        ) : null;
+      })()}
 
       {/* Error banner */}
       {error && (

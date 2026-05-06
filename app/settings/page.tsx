@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { TOKENS_KEY, DEFAULT_MAPPINGS_KEY } from '@/lib/mapping';
+import { TOKENS_KEY, DEFAULT_MAPPINGS_KEY, NONWORKING_CACHE_KEY } from '@/lib/mapping';
 import { MappingWizard } from '@/components/MappingWizard';
-import type { ProjectMapping } from '@/lib/types';
+import { fetchHolidays, DEFAULT_HOLIDAY_CALENDAR } from '@/lib/adapters/google-calendar';
+import type { ProjectMapping, NonWorkingDaysCache } from '@/lib/types';
 
 interface Tokens {
   azureToken: string;
@@ -13,6 +14,8 @@ interface Tokens {
   alluxiToken: string;
   harvestToken: string;
   harvestAccountId: string;
+  googleApiKey: string;
+  holidayCalendarId: string;
 }
 
 const DEFAULT_TOKENS: Tokens = {
@@ -23,6 +26,8 @@ const DEFAULT_TOKENS: Tokens = {
   alluxiToken: '',
   harvestToken: '',
   harvestAccountId: '',
+  googleApiKey: '',
+  holidayCalendarId: DEFAULT_HOLIDAY_CALENDAR,
 };
 
 export default function SettingsPage() {
@@ -31,13 +36,22 @@ export default function SettingsPage() {
   const [saved, setSaved] = useState(false);
   const [wizardOpen, setWizardOpen] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [syncStatus, setSyncStatus] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
 
   useEffect(() => {
     try {
       const t = localStorage.getItem(TOKENS_KEY);
-      if (t) setTokens(JSON.parse(t));
+      if (t) setTokens({ ...DEFAULT_TOKENS, ...JSON.parse(t) });
       const m = localStorage.getItem(DEFAULT_MAPPINGS_KEY);
       if (m) setMappings(JSON.parse(m));
+      const nwd = localStorage.getItem(NONWORKING_CACHE_KEY);
+      if (nwd) {
+        const cache: NonWorkingDaysCache = JSON.parse(nwd);
+        setSyncStatus(
+          `Last synced ${new Date(cache.lastSynced).toLocaleDateString()} — ${cache.days.length} holidays cached`
+        );
+      }
     } catch {}
   }, []);
 
@@ -74,6 +88,27 @@ export default function SettingsPage() {
   function openEdit(i: number) {
     setEditingIndex(i);
     setWizardOpen(true);
+  }
+
+  async function syncHolidays() {
+    if (!tokens.googleApiKey) {
+      setSyncStatus('Error: Google API Key is required');
+      return;
+    }
+    setSyncing(true);
+    setSyncStatus(null);
+    try {
+      const year = new Date().getFullYear();
+      const calId = tokens.holidayCalendarId || DEFAULT_HOLIDAY_CALENDAR;
+      const holidays = await fetchHolidays(year, calId, tokens.googleApiKey);
+      const cache: NonWorkingDaysCache = { days: holidays, lastSynced: new Date().toISOString() };
+      localStorage.setItem(NONWORKING_CACHE_KEY, JSON.stringify(cache));
+      setSyncStatus(`Synced ${holidays.length} holidays for ${year}`);
+    } catch (err) {
+      setSyncStatus(`Error: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setSyncing(false);
+    }
   }
 
   function removeMapping(i: number) {
@@ -146,6 +181,45 @@ export default function SettingsPage() {
           Save tokens
         </button>
         {saved && <span className="text-xs text-green-600">Saved</span>}
+      </div>
+
+      {/* Google Calendar */}
+      <h2 className="text-sm font-semibold text-zinc-500 uppercase tracking-wide mb-4">Google Calendar</h2>
+      <div className="space-y-3 mb-4">
+        <div>
+          <label className="block text-xs text-zinc-400 mb-1">API Key</label>
+          <input
+            type="password"
+            className="w-full border border-zinc-200 rounded px-3 py-1.5 text-sm outline-none focus:border-brand"
+            placeholder="AIza…"
+            value={tokens.googleApiKey}
+            onChange={e => updateToken('googleApiKey', e.target.value)}
+          />
+        </div>
+        <div>
+          <label className="block text-xs text-zinc-400 mb-1">Holiday calendar ID</label>
+          <input
+            type="text"
+            className="w-full border border-zinc-200 rounded px-3 py-1.5 text-sm outline-none focus:border-brand"
+            placeholder={DEFAULT_HOLIDAY_CALENDAR}
+            value={tokens.holidayCalendarId}
+            onChange={e => updateToken('holidayCalendarId', e.target.value)}
+          />
+        </div>
+      </div>
+      <div className="flex items-center gap-4 mb-10">
+        <button
+          onClick={syncHolidays}
+          disabled={syncing}
+          className="px-4 py-2 text-sm font-medium rounded border border-zinc-200 hover:bg-zinc-50 disabled:opacity-50"
+        >
+          {syncing ? 'Syncing…' : `Sync holidays for ${new Date().getFullYear()}`}
+        </button>
+        {syncStatus && (
+          <span className={`text-xs ${syncStatus.startsWith('Error') ? 'text-red-500' : 'text-zinc-400'}`}>
+            {syncStatus}
+          </span>
+        )}
       </div>
 
       {/* Project mappings */}

@@ -1,20 +1,15 @@
 # Next Session
 
-## Ready for first real end-to-end submit
+## Phase 2 Google Calendar — done. Next: Phase 1.5 enhancements.
 
-Both pending fixes from previous session are complete. Suggested next steps:
+### Phase 1.5 enhancements (ready to build)
+1. Pull existing entries from Alluxi + Harvest APIs before reconstruct — diff to skip/flag already-logged days, show "already logged" indicator per day
+2. Week/calendar visualizer — days × projects grid showing registered time in both tools (read-only)
 
-### 1. Add project mapping
-- Open Settings → Mapping Wizard
-- Keyword `BIP` → Alluxi ReMarkets project → Harvest BIP Phase 1 task
+### After Phase 1.5 → Phase 3 (deploy)
+- Vercel deploy (env vars for server-side defaults)
+- Multi-project Azure DevOps
+- "Re-reconstruct" keeps manual edits
 
-### 2. End-to-end test
-- Reconstruct April 2026 (or current week)
-- Verify active PRs appear, merge commits do not
-- Review + submit to both platforms
-- Verify entries appear in Alluxi and Harvest dashboards
-
-### 3. Phase 2 — next feature candidates
-- Google Calendar adapter — holiday cache, non-working days sync in Settings
+### Last phase
 - Jira adapter (Atlassian token + JQL)
-- Handle multi-project Azure DevOps (multiple org/project combos)

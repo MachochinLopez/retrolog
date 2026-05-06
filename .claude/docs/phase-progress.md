@@ -27,14 +27,21 @@
 - [x] Alluxi + Harvest APIs confirmed working (POST, DELETE)
 
 ### Remaining before first real submit
-- [ ] Add project mapping via wizard: keyword `BIP` → Alluxi ReMarkets + Harvest BIP Phase 1
-- [ ] End-to-end: reconstruct April 2026 → review → submit to both platforms → verify in dashboards
+- [x] Add project mapping via wizard: keyword `BIP` → Alluxi ReMarkets + Harvest BIP Phase 1
+- [x] End-to-end: reconstruct April 2026 → review → submit to both platforms → verify in dashboards
+
+## Phase 1.5 — Enhancements (post-submit, pre-Phase 2)
+- [ ] Pull existing entries from Alluxi + Harvest APIs before reconstruct — diff against them to avoid duplicate submission. Show "already logged" indicator per day in UI.
+- [ ] Free date range selection — allow any date (including future). Note: future dates won't have source activity; user is responsible for that. No validation gate.
+- [ ] Week roadmap / calendar visualizer — shows which days × which projects have time registered in both Alluxi and Harvest. Read-only overview, not edit surface.
 
 ## Phase 2 — More sources
-- [ ] Google Calendar adapter — holiday cache (sync once/year), meetings per reconstruction
-- [ ] Non-working days section in Settings: "Sync from Calendar" button + manual toggle
-- [ ] Pre-reconstruct confirmation banner showing skipped days
-- [ ] Jira adapter (Atlassian token + JQL)
+- [x] Google Calendar adapter — `lib/adapters/google-calendar.ts`, `parseHolidayEvents` + `fetchHolidays` (API key, public holiday calendar)
+- [x] Non-working days section in Settings: Google API Key field, calendar ID field, "Sync holidays for {year}" button, last-synced status
+- [x] Pre-reconstruct banner showing skipped non-working days in range
+- [x] Free date navigation — future dates allowed (no gate)
+- [x] 67 unit tests passing
+- [ ] Jira adapter (Atlassian token + JQL) — leave for last phase
 - [ ] Source connection status indicators in UI
 
 ## Phase 3 — Polish + Deploy
