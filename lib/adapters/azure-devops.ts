@@ -77,11 +77,22 @@ export async function fetchAzureDevOpsActivity(
 
   const res = await fetch(url, {
     headers: { Authorization: basicAuth(pat) },
+    redirect: 'follow',
   });
 
-  if (!res.ok) {
+  const contentType = res.headers.get('content-type') ?? '';
+  if (!res.ok || !contentType.includes('application/json')) {
+    if (!res.ok && res.status === 401) {
+      throw new Error('Azure DevOps: invalid or expired PAT — check token in Settings');
+    }
+    if (!res.ok && res.status === 404) {
+      throw new Error(`Azure DevOps: org "${org}" or project "${project}" not found`);
+    }
+    if (!contentType.includes('application/json')) {
+      throw new Error('Azure DevOps: got HTML response — invalid PAT, org, or project name');
+    }
     const body = await res.text();
-    throw new Error(`Azure DevOps API ${res.status}: ${body}`);
+    throw new Error(`Azure DevOps ${res.status}: ${body.slice(0, 200)}`);
   }
 
   const data: AzurePRListResponse = await res.json();

@@ -54,11 +54,17 @@ export interface SubmitResult {
 export interface ReconstructRequest {
   range: DateRange;
   nonWorkingDays: NonWorkingDay[];
-  githubUsername?: string;
+}
+
+export interface SourceStatus {
+  name: string;
+  ok: boolean;
+  count?: number;
+  error?: string;
 }
 
 export interface ReconstructResponse {
   entries: TimeEntry[];
   workingDays: string[];
-  sourcesUsed: string[];
+  sources: SourceStatus[];
 }

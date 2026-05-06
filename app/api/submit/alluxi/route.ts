@@ -6,7 +6,7 @@ export async function POST(req: NextRequest) {
   try {
     const { entry, mapping }: { entry: TimeEntry; mapping: ProjectMapping } = await req.json();
 
-    const token = req.headers.get('x-alluxi-token');
+    const token = req.headers.get('x-alluxi-token') || process.env.ALLUXI_TOKEN;
     if (!token) {
       return NextResponse.json({ error: 'Missing x-alluxi-token header' }, { status: 401 });
     }

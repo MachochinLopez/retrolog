@@ -6,8 +6,8 @@ export async function POST(req: NextRequest) {
   try {
     const { entry, mapping }: { entry: TimeEntry; mapping: ProjectMapping } = await req.json();
 
-    const token = req.headers.get('x-harvest-token');
-    const accountId = req.headers.get('x-harvest-account-id');
+    const token = req.headers.get('x-harvest-token') || process.env.HARVEST_TOKEN;
+    const accountId = req.headers.get('x-harvest-account-id') || process.env.HARVEST_ACCOUNT_ID;
 
     if (!token || !accountId) {
       return NextResponse.json(

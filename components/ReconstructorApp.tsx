@@ -15,6 +15,7 @@ import type {
   NonWorkingDay,
   NonWorkingDaysCache,
   SubmitResult,
+  SourceStatus,
 } from '@/lib/types';
 
 type Phase = 'idle' | 'reconstructing' | 'review' | 'submitting' | 'done';
@@ -62,6 +63,7 @@ export function ReconstructorApp() {
   const [workingDays, setWorkingDays] = useState<string[]>([]);
   const [nonWorkingDays, setNonWorkingDays] = useState<NonWorkingDay[]>([]);
   const [submitResults, setSubmitResults] = useState<SubmitResult[]>([]);
+  const [sources, setSources] = useState<SourceStatus[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const range = getRange(mode, offset);
@@ -77,6 +79,7 @@ export function ReconstructorApp() {
 
   async function handleReconstruct() {
     setError(null);
+    setSources([]);
     setPhase('reconstructing');
 
     const nwd = getNonWorkingForRange();
@@ -104,6 +107,7 @@ export function ReconstructorApp() {
 
       setEntries(data.entries);
       setWorkingDays(data.workingDays);
+      setSources(data.sources ?? []);
       setPhase('review');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
@@ -284,6 +288,36 @@ export function ReconstructorApp() {
 
       {phase === 'reconstructing' && (
         <p className="mb-6 text-sm text-zinc-500">Analyzing your work activity…</p>
+      )}
+
+      {/* Source status */}
+      {phase === 'review' && sources.length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-4">
+          {sources.map(s => (
+            <div
+              key={s.name}
+              className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border ${
+                s.ok
+                  ? 'border-green-200 bg-green-50 text-green-700'
+                  : 'border-red-200 bg-red-50 text-red-600'
+              }`}
+            >
+              <span>{s.ok ? '✓' : '✗'}</span>
+              <span>{s.name}</span>
+              {s.ok && s.count !== undefined && (
+                <span className="opacity-60">({s.count} PRs)</span>
+              )}
+              {!s.ok && s.error && (
+                <span className="opacity-75 max-w-xs truncate" title={s.error}>
+                  — {s.error}
+                </span>
+              )}
+            </div>
+          ))}
+          {sources.length === 0 && (
+            <span className="text-xs text-zinc-400">No sources configured — entries are generic.</span>
+          )}
+        </div>
       )}
 
       {/* Review table */}

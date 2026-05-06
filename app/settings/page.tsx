@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { TOKENS_KEY, DEFAULT_MAPPINGS_KEY } from '@/lib/mapping';
+import { MappingWizard } from '@/components/MappingWizard';
 import type { ProjectMapping } from '@/lib/types';
 
 interface Tokens {
@@ -28,6 +29,8 @@ export default function SettingsPage() {
   const [tokens, setTokens] = useState<Tokens>(DEFAULT_TOKENS);
   const [mappings, setMappings] = useState<ProjectMapping[]>([]);
   const [saved, setSaved] = useState(false);
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
 
   useEffect(() => {
     try {
@@ -38,30 +41,47 @@ export default function SettingsPage() {
     } catch {}
   }, []);
 
-  function save() {
+  function saveTokens() {
     localStorage.setItem(TOKENS_KEY, JSON.stringify(tokens));
-    localStorage.setItem(DEFAULT_MAPPINGS_KEY, JSON.stringify(mappings));
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   }
 
-  function addMapping() {
-    setMappings(prev => [
-      ...prev,
-      { hint: '', alluxiProjectId: '', alluxiTag: 'development', harvestProjectId: '', harvestTaskId: '', label: '' },
-    ]);
+  function updateToken(field: keyof Tokens, value: string) {
+    setTokens(prev => ({ ...prev, [field]: value }));
+  }
+
+  function handleWizardSave(mapping: ProjectMapping) {
+    setMappings(prev => {
+      const next = [...prev];
+      if (editingIndex !== null) {
+        next[editingIndex] = mapping;
+      } else {
+        next.push(mapping);
+      }
+      localStorage.setItem(DEFAULT_MAPPINGS_KEY, JSON.stringify(next));
+      return next;
+    });
+    setWizardOpen(false);
+    setEditingIndex(null);
+  }
+
+  function openAdd() {
+    setEditingIndex(null);
+    setWizardOpen(true);
+  }
+
+  function openEdit(i: number) {
+    setEditingIndex(i);
+    setWizardOpen(true);
   }
 
   function removeMapping(i: number) {
-    setMappings(prev => prev.filter((_, idx) => idx !== i));
-  }
-
-  function updateMapping(i: number, field: keyof ProjectMapping, value: string) {
-    setMappings(prev => prev.map((m, idx) => (idx === i ? { ...m, [field]: value } : m)));
-  }
-
-  function updateToken(field: keyof Tokens, value: string) {
-    setTokens(prev => ({ ...prev, [field]: value }));
+    setMappings(prev => {
+      const next = prev.filter((_, idx) => idx !== i);
+      localStorage.setItem(DEFAULT_MAPPINGS_KEY, JSON.stringify(next));
+      return next;
+    });
   }
 
   return (
@@ -71,15 +91,15 @@ export default function SettingsPage() {
         <a href="/" className="text-sm text-zinc-400 hover:text-zinc-600">← back</a>
       </div>
 
+      {/* Azure DevOps */}
       <h2 className="text-sm font-semibold text-zinc-500 uppercase tracking-wide mb-4">Azure DevOps</h2>
-
       <div className="space-y-3 mb-8">
         {(
           [
-            ['azureToken', 'Azure PAT', 'Personal Access Token'],
-            ['azureOrg', 'Organization', 'e.g. alluxi'],
-            ['azureProject', 'Project', 'e.g. remarkets'],
-            ['azureUserEmail', 'Your Email (filter PRs)', 'oscar@alluxi.com'],
+            ['azureToken', 'Personal Access Token', 'PAT with Code (Read) scope'],
+            ['azureOrg', 'Organization', 'e.g. jz2016'],
+            ['azureProject', 'Project', 'e.g. BIP'],
+            ['azureUserEmail', 'Your email (filter PRs)', 'your-azure-email@domain.com'],
           ] as [keyof Tokens, string, string][]
         ).map(([key, label, placeholder]) => (
           <div key={key}>
@@ -95,14 +115,14 @@ export default function SettingsPage() {
         ))}
       </div>
 
+      {/* Submission targets */}
       <h2 className="text-sm font-semibold text-zinc-500 uppercase tracking-wide mb-4">Submission Targets</h2>
-
       <div className="space-y-3 mb-8">
         {(
           [
             ['alluxiToken', 'Alluxi Token (PAT)', 'axk_…'],
             ['harvestToken', 'Harvest Token', '2976238.pt…'],
-            ['harvestAccountId', 'Harvest Account ID', '1234567'],
+            ['harvestAccountId', 'Harvest Account ID', '513966'],
           ] as [keyof Tokens, string, string][]
         ).map(([key, label, placeholder]) => (
           <div key={key}>
@@ -118,62 +138,53 @@ export default function SettingsPage() {
         ))}
       </div>
 
-      <h2 className="text-sm font-semibold text-zinc-500 uppercase tracking-wide mb-4">
-        Project Mapping
-      </h2>
-      <p className="text-xs text-zinc-400 mb-4">
-        Map a keyword from your repo/project name to Alluxi and Harvest project IDs.
-      </p>
-
-      <div className="space-y-4 mb-4">
-        {mappings.map((m, i) => (
-          <div key={i} className="border border-zinc-200 rounded p-3 space-y-2">
-            <div className="grid grid-cols-2 gap-2">
-              {(
-                [
-                  ['hint', 'Keyword (e.g. "remarkets")'],
-                  ['label', 'Display label (e.g. "ReMarkets")'],
-                  ['alluxiProjectId', 'Alluxi Project ID'],
-                  ['alluxiTag', 'Alluxi Tag (default: development)'],
-                  ['harvestProjectId', 'Harvest Project ID'],
-                  ['harvestTaskId', 'Harvest Task ID'],
-                ] as [keyof ProjectMapping, string][]).map(([field, label]) => (
-                <div key={field}>
-                  <label className="block text-xs text-zinc-400 mb-1">{label}</label>
-                  <input
-                    className="w-full border border-zinc-200 rounded px-2 py-1 text-sm outline-none focus:border-brand"
-                    value={m[field]}
-                    onChange={e => updateMapping(i, field, e.target.value)}
-                  />
-                </div>
-              ))}
-            </div>
-            <button
-              onClick={() => removeMapping(i)}
-              className="text-xs text-zinc-400 hover:text-red-400"
-            >
-              Remove
-            </button>
-          </div>
-        ))}
-      </div>
-
-      <button
-        onClick={addMapping}
-        className="text-sm text-zinc-500 border border-zinc-200 rounded px-3 py-1.5 hover:bg-zinc-50 mb-8"
-      >
-        + Add mapping
-      </button>
-
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-4 mb-10">
         <button
-          onClick={save}
+          onClick={saveTokens}
           className="px-4 py-2 bg-brand text-white text-sm font-medium rounded hover:bg-brand-hover"
         >
-          Save
+          Save tokens
         </button>
         {saved && <span className="text-xs text-green-600">Saved</span>}
       </div>
+
+      {/* Project mappings */}
+      <h2 className="text-sm font-semibold text-zinc-500 uppercase tracking-wide mb-1">Project Mappings</h2>
+      <p className="text-xs text-zinc-400 mb-4">
+        Map a keyword from your repo name to Alluxi + Harvest projects. Save tokens first.
+      </p>
+
+      {mappings.length > 0 && (
+        <div className="space-y-2 mb-4">
+          {mappings.map((m, i) => (
+            <div key={i} className="flex items-center justify-between border border-zinc-200 rounded px-4 py-3 bg-white">
+              <div>
+                <span className="font-mono text-xs bg-zinc-100 px-1.5 py-0.5 rounded mr-2">{m.hint}</span>
+                <span className="text-sm text-zinc-700">{m.label}</span>
+              </div>
+              <div className="flex gap-3 text-xs">
+                <button onClick={() => openEdit(i)} className="text-zinc-400 hover:text-brand">Edit</button>
+                <button onClick={() => removeMapping(i)} className="text-zinc-400 hover:text-red-400">Remove</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {wizardOpen ? (
+        <MappingWizard
+          initial={editingIndex !== null ? mappings[editingIndex] : undefined}
+          onSave={handleWizardSave}
+          onCancel={() => { setWizardOpen(false); setEditingIndex(null); }}
+        />
+      ) : (
+        <button
+          onClick={openAdd}
+          className="text-sm text-zinc-500 border border-zinc-200 rounded px-3 py-1.5 hover:bg-zinc-50"
+        >
+          + Add mapping
+        </button>
+      )}
     </div>
   );
 }
