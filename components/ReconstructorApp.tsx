@@ -99,7 +99,7 @@ export function ReconstructorApp() {
   function getNonWorkingForRange(): NonWorkingDay[] {
     const cache = loadFromStorage<NonWorkingDaysCache>(NONWORKING_CACHE_KEY);
     if (!cache) return [];
-    return cache.days.filter(d => d.date >= range.from && d.date <= range.to);
+    return cache.days.filter(d => !d.disabled && d.date >= range.from && d.date <= range.to);
   }
 
   async function handleReconstruct() {

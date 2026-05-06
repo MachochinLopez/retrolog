@@ -37,7 +37,8 @@
 
 ## Phase 2 — More sources
 - [x] Google Calendar adapter — `lib/adapters/google-calendar.ts`, `parseHolidayEvents` + `fetchHolidays` (API key, public holiday calendar)
-- [x] Non-working days section in Settings: Google API Key field, calendar ID field, "Sync holidays for {year}" button, last-synced status
+- [x] Non-working days manager in Settings — sync holidays, per-day checkbox toggle (disable without deleting), add PTO/custom days manually, re-sync preserves user toggles + custom days
+- [x] `NonWorkingDay.disabled` + `NonWorkingDay.source` fields (holiday | custom)
 - [x] Pre-reconstruct banner showing skipped non-working days in range
 - [x] Free date navigation — future dates allowed (no gate)
 - [x] 67 unit tests passing
@@ -53,3 +54,12 @@
 ## Phase 4 — Claude Code skills
 - [ ] `.claude/commands/reconstruct.md`
 - [ ] `.claude/commands/submit.md`
+
+## Phase 5 — OAuth2 wizard integrations
+Goal: replace all PAT/API-key fields with OAuth2 "Connect" flows per service. Each gets a wizard: connect → authorize → confirm scopes → done. PAT fallback stays for power users.
+
+- [ ] **Google Calendar OAuth2** — Authorization Code flow, `app/api/auth/google/` callback route, stores refresh token. Enables reading private calendars (PTO, personal events as `meeting` activities). Scopes: `calendar.readonly`. Calendar picker: user selects which calendars to include.
+- [ ] **Harvest OAuth2** — Harvest supports OAuth2 (`id.getharvest.com/oauth2`). Currently using PAT. OAuth flow = connect button → Harvest login → callback stores token. Auto-refresh on expiry.
+- [ ] **Alluxi OAuth2** — depends on whether Alluxi exposes OAuth2 endpoints (currently PAT only). Investigate `api.alluxi.com` auth docs. If not available, keep PAT.
+- [ ] **Azure DevOps OAuth2** — AAD OAuth flow, scopes: `vso.code_read`. More complex (org-level). May not be worth it vs PAT for internal tooling.
+- [ ] **Settings UI** — replace each token section with "Connected as X ✓" + "Disconnect" when OAuth active. Fall back to manual PAT field if not connected.

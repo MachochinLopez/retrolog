@@ -35,6 +35,8 @@ export interface ProjectMapping {
 export interface NonWorkingDay {
   date: string; // YYYY-MM-DD
   reason: string;
+  source?: 'holiday' | 'custom'; // holiday = synced from Google Calendar, custom = manual/PTO
+  disabled?: boolean; // true = excluded from working day calculation
 }
 
 export interface NonWorkingDaysCache {
