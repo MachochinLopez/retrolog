@@ -78,6 +78,8 @@ export function ReconstructorApp() {
   const [error, setError] = useState<string | null>(null);
   const [restoredAt, setRestoredAt] = useState<string | null>(null);
   const [existingByDate, setExistingByDate] = useState<Record<string, DaySummary>>({});
+  const [loadingExisting, setLoadingExisting] = useState(false);
+  const [submitProgress, setSubmitProgress] = useState<{ done: number; total: number } | null>(null);
   const existingFetchRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -101,6 +103,9 @@ export function ReconstructorApp() {
     const controller = new AbortController();
     existingFetchRef.current = controller;
 
+    setExistingByDate({});
+    setLoadingExisting(true);
+
     const tokens = loadFromStorage<Record<string, string>>(TOKENS_KEY) ?? {};
     const headers: Record<string, string> = {};
     if (tokens.alluxiToken) headers['x-alluxi-token'] = tokens.alluxiToken;
@@ -112,8 +117,13 @@ export function ReconstructorApp() {
       signal: controller.signal,
     })
       .then(r => r.ok ? r.json() : null)
-      .then(data => { if (data?.byDate) setExistingByDate(data.byDate); })
-      .catch(() => {});
+      .then(data => {
+        if (data?.byDate) setExistingByDate(data.byDate);
+        setLoadingExisting(false);
+      })
+      .catch(err => {
+        if (err?.name !== 'AbortError') setLoadingExisting(false);
+      });
 
     return () => controller.abort();
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -218,9 +228,14 @@ export function ReconstructorApp() {
 
   async function handleSubmit() {
     setPhase('submitting');
+    const mappableEntries = entries.filter(e =>
+      mappings.some(m => e.projectHint.toLowerCase().includes(m.hint.toLowerCase()))
+    );
+    setSubmitProgress({ done: 0, total: mappableEntries.length });
     const tokens = loadFromStorage<Record<string, string>>(TOKENS_KEY) ?? {};
     const results: SubmitResult[] = [];
     let skipped = 0;
+    let done = 0;
 
     for (const entry of entries) {
       const mapping = mappings.find(m =>
@@ -230,6 +245,9 @@ export function ReconstructorApp() {
         skipped++;
         continue;
       }
+
+      done++;
+      setSubmitProgress({ done, total: mappableEntries.length });
 
       const alluxiHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
       if (tokens.alluxiToken) alluxiHeaders['x-alluxi-token'] = tokens.alluxiToken;
@@ -273,6 +291,7 @@ export function ReconstructorApp() {
     }
 
     setSubmitResults(results);
+    setSubmitProgress(null);
     localStorage.removeItem(SESSION_KEY);
     setPhase('done');
   }
@@ -316,7 +335,12 @@ export function ReconstructorApp() {
           >
             ←
           </button>
-          <span className="text-sm font-medium w-48 text-center">{range.label}</span>
+          <span className="text-sm font-medium w-48 text-center flex items-center justify-center gap-2">
+            {range.label}
+            {loadingExisting && (
+              <span className="w-3 h-3 rounded-full border-2 border-zinc-200 border-t-zinc-400 animate-spin inline-block" />
+            )}
+          </span>
           <button
             onClick={() => setOffset(o => o + 1)}
             className="text-zinc-400 hover:text-zinc-600 px-1 disabled:opacity-30"
@@ -328,32 +352,43 @@ export function ReconstructorApp() {
       </div>
 
       {/* Already logged panel */}
-      {Object.keys(existingByDate).length > 0 && (
+      {(loadingExisting || Object.keys(existingByDate).length > 0) && (
         <div className="mb-4">
           <p className="text-xs text-zinc-400 mb-2 uppercase tracking-wide font-semibold">Already logged</p>
           <div className="border border-zinc-200 rounded overflow-hidden">
-            {Object.entries(existingByDate)
-              .sort(([a], [b]) => a.localeCompare(b))
-              .map(([date, s]) => {
-                const alluxiFull = s.alluxiHours >= 8;
-                const harvestFull = s.harvestHours >= 8;
-                const bothFull = alluxiFull && harvestFull;
-                return (
-                  <div key={date} className="flex items-center gap-4 px-4 py-2 border-b border-zinc-100 last:border-b-0 text-sm">
-                    <span className="font-mono text-xs text-zinc-400 w-24 shrink-0">{date}</span>
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${s.alluxiHours > 0 ? (alluxiFull ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700') : 'bg-zinc-100 text-zinc-400'}`}>
-                      Alluxi {s.alluxiHours > 0 ? `${s.alluxiHours}h` : '—'}
-                    </span>
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${s.harvestHours > 0 ? (harvestFull ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700') : 'bg-zinc-100 text-zinc-400'}`}>
-                      Harvest {s.harvestHours > 0 ? `${s.harvestHours}h` : '—'}
-                    </span>
-                    {bothFull && <span className="text-xs text-green-600 ml-auto">✓ full day</span>}
-                    {!bothFull && (s.alluxiHours > 0 || s.harvestHours > 0) && (
-                      <span className="text-xs text-yellow-600 ml-auto">partial</span>
-                    )}
-                  </div>
-                );
-              })}
+            {loadingExisting && Object.keys(existingByDate).length === 0 ? (
+              // Skeleton rows while first load
+              [0, 1, 2].map(i => (
+                <div key={i} className="flex items-center gap-4 px-4 py-2.5 border-b border-zinc-100 last:border-b-0 animate-pulse">
+                  <div className="h-3 w-20 bg-zinc-100 rounded" />
+                  <div className="h-5 w-16 bg-zinc-100 rounded-full" />
+                  <div className="h-5 w-16 bg-zinc-100 rounded-full" />
+                </div>
+              ))
+            ) : (
+              Object.entries(existingByDate)
+                .sort(([a], [b]) => a.localeCompare(b))
+                .map(([date, s]) => {
+                  const alluxiFull = s.alluxiHours >= 8;
+                  const harvestFull = s.harvestHours >= 8;
+                  const bothFull = alluxiFull && harvestFull;
+                  return (
+                    <div key={date} className="flex items-center gap-4 px-4 py-2 border-b border-zinc-100 last:border-b-0 text-sm">
+                      <span className="font-mono text-xs text-zinc-400 w-24 shrink-0">{date}</span>
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${s.alluxiHours > 0 ? (alluxiFull ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700') : 'bg-zinc-100 text-zinc-400'}`}>
+                        Alluxi {s.alluxiHours > 0 ? `${s.alluxiHours}h` : '—'}
+                      </span>
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${s.harvestHours > 0 ? (harvestFull ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700') : 'bg-zinc-100 text-zinc-400'}`}>
+                        Harvest {s.harvestHours > 0 ? `${s.harvestHours}h` : '—'}
+                      </span>
+                      {bothFull && <span className="text-xs text-green-600 ml-auto">✓ full day</span>}
+                      {!bothFull && (s.alluxiHours > 0 || s.harvestHours > 0) && (
+                        <span className="text-xs text-yellow-600 ml-auto">partial</span>
+                      )}
+                    </div>
+                  );
+                })
+            )}
           </div>
         </div>
       )}
@@ -392,7 +427,10 @@ export function ReconstructorApp() {
       )}
 
       {phase === 'reconstructing' && (
-        <p className="mb-6 text-sm text-zinc-500">Analyzing your work activity…</p>
+        <div className="mb-6 flex items-center gap-3 text-sm text-zinc-500">
+          <span className="w-4 h-4 rounded-full border-2 border-zinc-200 border-t-brand animate-spin shrink-0" />
+          Analyzing your work activity…
+        </div>
       )}
 
       {/* Source status */}
@@ -455,7 +493,22 @@ export function ReconstructorApp() {
       )}
 
       {phase === 'submitting' && (
-        <p className="text-sm text-zinc-500">Submitting entries…</p>
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center gap-3 text-sm text-zinc-500">
+            <span className="w-4 h-4 rounded-full border-2 border-zinc-200 border-t-brand animate-spin shrink-0" />
+            {submitProgress
+              ? `Submitting entry ${submitProgress.done} of ${submitProgress.total}…`
+              : 'Submitting entries…'}
+          </div>
+          {submitProgress && submitProgress.total > 0 && (
+            <div className="h-1 w-full bg-zinc-100 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-brand rounded-full transition-all duration-300"
+                style={{ width: `${(submitProgress.done / submitProgress.total) * 100}%` }}
+              />
+            </div>
+          )}
+        </div>
       )}
 
       {/* Done */}
