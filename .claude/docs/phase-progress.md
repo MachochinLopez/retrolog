@@ -1,52 +1,46 @@
 # Phase Progress
 
-## Phase 1 — Scaffold + Core (GitHub only)
+## Phase 1 — Core (Azure DevOps + Alluxi + Harvest)
 
 ### Done
-- [x] Next.js 16 scaffold with TypeScript + Tailwind v4
-- [x] `lib/types.ts` — all shared interfaces
+- [x] Next.js 16 scaffold, TypeScript strict, Tailwind v4, brand color `#FF4F5E`
+- [x] All shared types (`lib/types.ts`)
 - [x] `lib/reconstruction.ts` — getWorkingDays, enforceEightHours, splitHoursEvenly
 - [x] `lib/validation.ts` — validateDayTotals, parseClaudeOutput
 - [x] `lib/mapping.ts` — findMapping, localStorage key constants
-- [x] `lib/claude.ts` — reconstructTimeline
-- [x] `lib/alluxi.ts` — submitToAlluxi
+- [x] `lib/claude.ts` — reconstructTimeline (Claude API)
+- [x] `lib/alluxi.ts` — submitToAlluxi, deleteAlluxiEntry
 - [x] `lib/harvest.ts` — submitToHarvest
-- [x] `lib/adapters/github.ts` — fetchGithubActivity
-- [x] `app/api/reconstruct/route.ts`
-- [x] `app/api/submit/alluxi/route.ts`
-- [x] `app/api/submit/harvest/route.ts`
-- [x] `components/ReconstructorApp.tsx` — full app state machine
+- [x] `lib/adapters/azure-devops.ts` — PRs + commits, ticket ID extraction (`[1478]` format)
+- [x] `lib/adapters/github.ts` — optional secondary source
+- [x] All API routes: reconstruct, submit/alluxi, submit/harvest, wizard/alluxi-projects, wizard/harvest-projects
+- [x] Env var fallbacks in all routes (`AZURE_TOKEN`, `ALLUXI_TOKEN`, `HARVEST_TOKEN`, etc.)
+- [x] `components/ReconstructorApp.tsx` — Day/Week/Month picker, source status badges
 - [x] `components/TimelineReview.tsx` — editable review table
 - [x] `components/EntryRow.tsx`
-- [x] `app/settings/page.tsx` — token + project mapping config
-- [x] Unit tests for reconstruction, validation, mapping
-- [x] `vitest.config.ts`
-- [x] `.claude/` docs structure
+- [x] `components/MappingWizard.tsx` — 4-step wizard (keyword → Alluxi → Harvest → confirm)
+- [x] `app/settings/page.tsx` — Azure DevOps config, submission targets, mapping wizard
+- [x] 51 unit tests passing, TypeScript clean
+- [x] Azure DevOps PAT confirmed working (`jz2016/BIP`, `oscar.lopez@simpat.tech`)
+- [x] Alluxi + Harvest APIs confirmed working (POST, DELETE)
 
-### TODO (Phase 1 completion)
-- [x] Discover Alluxi POST body schema → updated `api-contracts.md` + `lib/alluxi.ts`
-- [x] Discover Alluxi DELETE endpoint: `DELETE /api/time-entries?id={entryId}` → added `deleteAlluxiEntry`
-- [x] Confirm Harvest POST + DELETE working
-- [x] Run tests: `npm test` — 27 passing
-- [x] Dev server renders; TypeScript clean
-- [x] Build Azure DevOps adapter (`lib/adapters/azure-devops.ts`) — primary source, 10 tests
-- [x] Azure DevOps wired into reconstruct route (primary), GitHub kept as optional secondary
-- [x] Settings UI updated: Azure DevOps section (PAT, org, project, email), GitHub removed
-- [ ] Set Azure DevOps PAT + org + project + email in Settings UI
-- [ ] Set project mappings in Settings UI: ReMarkets→Alluxi `cmoaftn5f000004kvu7vnkkcl`, Harvest `47980995`
-- [ ] End-to-end test: reconstruct a known past month with real Azure DevOps data
+### Remaining before first real submit
+- [ ] Add project mapping via wizard: keyword `BIP` → Alluxi ReMarkets + Harvest BIP Phase 1
+- [ ] End-to-end: reconstruct April 2026 → review → submit to both platforms → verify in dashboards
 
 ## Phase 2 — More sources
-- [ ] Google Calendar adapter (OAuth2, holiday detection)
-- [ ] Azure DevOps adapter (PAT, PRs + work items)
-- [ ] Jira adapter (Atlassian token)
-- [ ] Source connection status UI
-- [ ] Non-working days Settings section with "Sync from Calendar" button
+- [ ] Google Calendar adapter — holiday cache (sync once/year), meetings per reconstruction
+- [ ] Non-working days section in Settings: "Sync from Calendar" button + manual toggle
+- [ ] Pre-reconstruct confirmation banner showing skipped days
+- [ ] Jira adapter (Atlassian token + JQL)
+- [ ] Source connection status indicators in UI
 
 ## Phase 3 — Polish + Deploy
-- [ ] Vercel deploy
-- [ ] Per-source failure resilience (one source down → others work)
+- [ ] Vercel deploy (env vars for server-side defaults)
+- [ ] Per-source failure resilience (already partially there — errors surfaced, not fatal)
+- [ ] Handle multi-project Azure DevOps (multiple org/project combos)
+- [ ] "Re-reconstruct" keeps manual edits (currently wipes them)
 
-## Phase 4 — Claude Code integration
-- [ ] `.claude/commands/reconstruct.md` skill
-- [ ] `.claude/commands/submit.md` skill
+## Phase 4 — Claude Code skills
+- [ ] `.claude/commands/reconstruct.md`
+- [ ] `.claude/commands/submit.md`

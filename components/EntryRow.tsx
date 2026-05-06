@@ -1,5 +1,6 @@
 'use client';
 
+import { findMapping } from '@/lib/mapping';
 import type { TimeEntry, ProjectMapping } from '@/lib/types';
 
 interface EntryRowProps {
@@ -10,6 +11,8 @@ interface EntryRowProps {
 }
 
 export function EntryRow({ entry, mappings, onUpdate, onDelete }: EntryRowProps) {
+  const selectedHint = findMapping(entry.projectHint, mappings)?.hint ?? '';
+
   return (
     <tr className="border-b border-zinc-100">
       <td className="px-4 py-2">
@@ -33,14 +36,12 @@ export function EntryRow({ entry, mappings, onUpdate, onDelete }: EntryRowProps)
       <td className="px-4 py-2 w-40">
         <select
           className="w-full bg-transparent text-sm outline-none cursor-pointer"
-          value={entry.projectHint}
+          value={selectedHint}
           onChange={e => onUpdate(entry.id, 'projectHint', e.target.value)}
         >
-          <option value={entry.projectHint}>{entry.projectHint || '— unset —'}</option>
+          <option value="">— unset —</option>
           {mappings.map(m => (
-            <option key={m.hint} value={m.hint}>
-              {m.label}
-            </option>
+            <option key={m.hint} value={m.hint}>{m.label}</option>
           ))}
         </select>
       </td>

@@ -105,7 +105,12 @@ export function ReconstructorApp() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? 'Reconstruction failed');
 
-      setEntries(data.entries);
+      const defaultHint = mappings.length === 1 ? mappings[0].hint : null;
+      setEntries(
+        (data.entries as TimeEntry[]).map(e =>
+          defaultHint ? { ...e, projectHint: defaultHint } : e
+        )
+      );
       setWorkingDays(data.workingDays);
       setSources(data.sources ?? []);
       setPhase('review');
@@ -150,69 +155,56 @@ export function ReconstructorApp() {
     setPhase('submitting');
     const tokens = loadFromStorage<Record<string, string>>(TOKENS_KEY) ?? {};
     const results: SubmitResult[] = [];
+    let skipped = 0;
 
     for (const entry of entries) {
       const mapping = mappings.find(m =>
         entry.projectHint.toLowerCase().includes(m.hint.toLowerCase())
       );
-      if (!mapping) continue;
-
-      // Submit to Alluxi
-      if (tokens.alluxiToken) {
-        try {
-          const res = await fetch('/api/submit/alluxi', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'x-alluxi-token': tokens.alluxiToken,
-            },
-            body: JSON.stringify({ entry, mapping }),
-          });
-          const data = await res.json();
-          results.push({
-            target: 'alluxi',
-            entryId: entry.id,
-            success: data.success,
-            error: data.error,
-          });
-        } catch (err) {
-          results.push({
-            target: 'alluxi',
-            entryId: entry.id,
-            success: false,
-            error: err instanceof Error ? err.message : 'Unknown error',
-          });
-        }
+      if (!mapping) {
+        skipped++;
+        continue;
       }
 
-      // Submit to Harvest
-      if (tokens.harvestToken && tokens.harvestAccountId) {
-        try {
-          const res = await fetch('/api/submit/harvest', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'x-harvest-token': tokens.harvestToken,
-              'x-harvest-account-id': tokens.harvestAccountId,
-            },
-            body: JSON.stringify({ entry, mapping }),
-          });
-          const data = await res.json();
-          results.push({
-            target: 'harvest',
-            entryId: entry.id,
-            success: data.success,
-            error: data.error,
-          });
-        } catch (err) {
-          results.push({
-            target: 'harvest',
-            entryId: entry.id,
-            success: false,
-            error: err instanceof Error ? err.message : 'Unknown error',
-          });
-        }
+      const alluxiHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (tokens.alluxiToken) alluxiHeaders['x-alluxi-token'] = tokens.alluxiToken;
+
+      try {
+        const res = await fetch('/api/submit/alluxi', {
+          method: 'POST',
+          headers: alluxiHeaders,
+          body: JSON.stringify({ entry, mapping }),
+        });
+        const data = await res.json();
+        results.push({ target: 'alluxi', entryId: entry.id, success: data.success, error: data.error });
+      } catch (err) {
+        results.push({ target: 'alluxi', entryId: entry.id, success: false, error: err instanceof Error ? err.message : 'Unknown error' });
       }
+
+      const harvestHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (tokens.harvestToken) harvestHeaders['x-harvest-token'] = tokens.harvestToken;
+      if (tokens.harvestAccountId) harvestHeaders['x-harvest-account-id'] = tokens.harvestAccountId;
+
+      try {
+        const res = await fetch('/api/submit/harvest', {
+          method: 'POST',
+          headers: harvestHeaders,
+          body: JSON.stringify({ entry, mapping }),
+        });
+        const data = await res.json();
+        results.push({ target: 'harvest', entryId: entry.id, success: data.success, error: data.error });
+      } catch (err) {
+        results.push({ target: 'harvest', entryId: entry.id, success: false, error: err instanceof Error ? err.message : 'Unknown error' });
+      }
+    }
+
+    if (skipped > 0) {
+      results.push({
+        target: 'alluxi',
+        entryId: 'skipped',
+        success: false,
+        error: `${skipped} entr${skipped === 1 ? 'y' : 'ies'} skipped — no project mapping matched. Check Settings → Project Mappings.`,
+      });
     }
 
     setSubmitResults(results);
