@@ -10,6 +10,11 @@ Retrolog reads your actual work artifacts (GitHub PRs, Azure DevOps, Jira, Googl
 ## Current phase
 See `.claude/docs/phase-progress.md`
 
+## Progress tracking (ALWAYS do this after any code change)
+After every task that changes code:
+1. Update `.claude/docs/phase-progress.md` — mark completed items `[x]`, update test count
+2. Update `.claude/docs/next-session.md` — replace with current pending work / next steps
+
 ## Tech stack
 - Next.js 16 App Router (NOT Pages Router)
 - React 19 — use `'use client'` for interactive components

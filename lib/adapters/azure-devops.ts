@@ -10,6 +10,7 @@ export interface AzureDevOpsConfig {
 interface AzurePR {
   pullRequestId: number;
   title: string;
+  creationDate?: string;
   closedDate?: string;
   status: string;
   repository: { name: string };
@@ -123,16 +124,43 @@ export function parsePullRequests(
     }));
 }
 
+export function parseActivePullRequests(
+  prs: AzurePR[],
+  org: string,
+  project: string,
+  range: DateRange,
+  userEmail?: string
+): Activity[] {
+  return prs
+    .filter(pr => {
+      if (pr.status !== 'active') return false;
+      const creationDate = pr.creationDate?.split('T')[0];
+      if (!creationDate) return false;
+      if (creationDate < range.from || creationDate > range.to) return false;
+      if (userEmail && pr.createdBy.uniqueName.toLowerCase() !== userEmail.toLowerCase()) return false;
+      return true;
+    })
+    .map(pr => ({
+      date: pr.creationDate!.split('T')[0],
+      type: 'pr' as const,
+      title: formatTitle(pr.title),
+      projectHint: pr.repository.name,
+      url: prWebUrl(org, project, pr.repository.name, pr.pullRequestId),
+    }));
+}
+
 export function parseCommits(
   commits: AzureCommit[],
   repoName: string,
   range: DateRange,
   userEmail?: string
 ): Activity[] {
+  const mergeRe = /^Merge\s+\S+\s+into\s+/i;
   const filtered = commits.filter(c => {
     const date = c.author.date.split('T')[0];
     if (date < range.from || date > range.to) return false;
     if (userEmail && c.author.email.toLowerCase() !== userEmail.toLowerCase()) return false;
+    if (mergeRe.test(c.comment.split('\n')[0].trim())) return false;
     return true;
   });
 
@@ -181,12 +209,20 @@ export async function fetchAzureDevOpsActivity(
     'api-version': '7.1',
   });
 
-  const [prData, repoData] = await Promise.all([
+  const activePrParams = new URLSearchParams({
+    'searchCriteria.status': 'active',
+    '$top': '200',
+    'api-version': '7.1',
+  });
+
+  const [prData, activePrData, repoData] = await Promise.all([
     getJson<AzurePRListResponse>(`${base}/git/pullrequests?${prParams}`, pat),
+    getJson<AzurePRListResponse>(`${base}/git/pullrequests?${activePrParams}`, pat),
     getJson<AzureRepoListResponse>(`${base}/git/repositories?api-version=7.1`, pat),
   ]);
 
   const prActivities = parsePullRequests(prData.value, org, project, range, userEmail);
+  const activePrActivities = parseActivePullRequests(activePrData.value, org, project, range, userEmail);
 
   // Fetch commits from all repos in parallel
   const commitParams = new URLSearchParams({
@@ -209,11 +245,19 @@ export async function fetchAzureDevOpsActivity(
     .filter((r): r is PromiseFulfilledResult<Activity[]> => r.status === 'fulfilled')
     .flatMap(r => r.value);
 
+  // Dedup active PRs: if same day+repo already covered by completed PR, drop active
+  const completedDayRepo = new Set(prActivities.map(a => `${a.date}|${a.projectHint}`));
+  const dedupedActivePrs = activePrActivities.filter(
+    a => !completedDayRepo.has(`${a.date}|${a.projectHint}`)
+  );
+
+  const allPrActivities = [...prActivities, ...dedupedActivePrs];
+
   // PRs take priority: remove commit activities on days already covered by a PR in the same repo
-  const prDayRepo = new Set(prActivities.map(a => `${a.date}|${a.projectHint}`));
+  const prDayRepo = new Set(allPrActivities.map(a => `${a.date}|${a.projectHint}`));
   const filteredCommits = commitActivities.filter(
     a => !prDayRepo.has(`${a.date}|${a.projectHint}`)
   );
 
-  return [...prActivities, ...filteredCommits];
+  return [...allPrActivities, ...filteredCommits];
 }

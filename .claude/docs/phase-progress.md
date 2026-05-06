@@ -12,15 +12,17 @@
 - [x] `lib/alluxi.ts` — submitToAlluxi, deleteAlluxiEntry
 - [x] `lib/harvest.ts` — submitToHarvest
 - [x] `lib/adapters/azure-devops.ts` — PRs + commits, ticket ID extraction (`[1478]` format)
+- [x] `lib/adapters/azure-devops.ts` — active (open) PR support via `parseActivePullRequests`; merge commit filtering (`/^Merge\s+\S+\s+into\s+/i`); dedup active vs completed same day+repo
 - [x] `lib/adapters/github.ts` — optional secondary source
+- [x] `lib/mapping.ts` — added `SESSION_KEY = 'retrolog-last-session'`
 - [x] All API routes: reconstruct, submit/alluxi, submit/harvest, wizard/alluxi-projects, wizard/harvest-projects
 - [x] Env var fallbacks in all routes (`AZURE_TOKEN`, `ALLUXI_TOKEN`, `HARVEST_TOKEN`, etc.)
-- [x] `components/ReconstructorApp.tsx` — Day/Week/Month picker, source status badges
+- [x] `components/ReconstructorApp.tsx` — Day/Week/Month picker, source status badges, session persistence (restore on refresh, clear on submit/re-reconstruct, "Restored from HH:MM" note)
 - [x] `components/TimelineReview.tsx` — editable review table
 - [x] `components/EntryRow.tsx`
 - [x] `components/MappingWizard.tsx` — 4-step wizard (keyword → Alluxi → Harvest → confirm)
 - [x] `app/settings/page.tsx` — Azure DevOps config, submission targets, mapping wizard
-- [x] 51 unit tests passing, TypeScript clean
+- [x] 62 unit tests passing, TypeScript clean
 - [x] Azure DevOps PAT confirmed working (`jz2016/BIP`, `oscar.lopez@simpat.tech`)
 - [x] Alluxi + Harvest APIs confirmed working (POST, DELETE)
 

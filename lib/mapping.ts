@@ -18,3 +18,4 @@ export function applyMappings(
 export const DEFAULT_MAPPINGS_KEY = 'retrolog-mapping';
 export const NONWORKING_CACHE_KEY = 'retrolog-nonworking-days';
 export const TOKENS_KEY = 'retrolog-tokens';
+export const SESSION_KEY = 'retrolog-last-session';

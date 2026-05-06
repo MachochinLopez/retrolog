@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import {
   format,
   startOfMonth, endOfMonth, addMonths,
@@ -8,7 +8,7 @@ import {
   addDays,
 } from 'date-fns';
 import { TimelineReview } from './TimelineReview';
-import { NONWORKING_CACHE_KEY, TOKENS_KEY, DEFAULT_MAPPINGS_KEY } from '@/lib/mapping';
+import { NONWORKING_CACHE_KEY, TOKENS_KEY, DEFAULT_MAPPINGS_KEY, SESSION_KEY } from '@/lib/mapping';
 import type {
   TimeEntry,
   ProjectMapping,
@@ -20,6 +20,16 @@ import type {
 
 type Phase = 'idle' | 'reconstructing' | 'review' | 'submitting' | 'done';
 type RangeMode = 'day' | 'week' | 'month';
+
+interface SessionData {
+  entries: TimeEntry[];
+  workingDays: string[];
+  sources: SourceStatus[];
+  nonWorkingDays: NonWorkingDay[];
+  mode: RangeMode;
+  offset: number;
+  savedAt: string;
+}
 
 function loadFromStorage<T>(key: string): T | null {
   try {
@@ -65,6 +75,21 @@ export function ReconstructorApp() {
   const [submitResults, setSubmitResults] = useState<SubmitResult[]>([]);
   const [sources, setSources] = useState<SourceStatus[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [restoredAt, setRestoredAt] = useState<string | null>(null);
+
+  useEffect(() => {
+    const session = loadFromStorage<SessionData>(SESSION_KEY);
+    if (session) {
+      setEntries(session.entries);
+      setWorkingDays(session.workingDays);
+      setSources(session.sources);
+      setNonWorkingDays(session.nonWorkingDays);
+      setMode(session.mode);
+      setOffset(session.offset);
+      setPhase('review');
+      setRestoredAt(new Date(session.savedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+    }
+  }, []);
 
   const range = getRange(mode, offset);
   const mappings: ProjectMapping[] =
@@ -80,6 +105,8 @@ export function ReconstructorApp() {
   async function handleReconstruct() {
     setError(null);
     setSources([]);
+    setRestoredAt(null);
+    localStorage.removeItem(SESSION_KEY);
     setPhase('reconstructing');
 
     const nwd = getNonWorkingForRange();
@@ -106,13 +133,25 @@ export function ReconstructorApp() {
       if (!res.ok) throw new Error(data.error ?? 'Reconstruction failed');
 
       const defaultHint = mappings.length === 1 ? mappings[0].hint : null;
-      setEntries(
-        (data.entries as TimeEntry[]).map(e =>
-          defaultHint ? { ...e, projectHint: defaultHint } : e
-        )
+      const resolvedEntries = (data.entries as TimeEntry[]).map(e =>
+        defaultHint ? { ...e, projectHint: defaultHint } : e
       );
+      const resolvedSources: SourceStatus[] = data.sources ?? [];
+      setEntries(resolvedEntries);
       setWorkingDays(data.workingDays);
-      setSources(data.sources ?? []);
+      setSources(resolvedSources);
+      setRestoredAt(null);
+
+      localStorage.setItem(SESSION_KEY, JSON.stringify({
+        entries: resolvedEntries,
+        workingDays: data.workingDays,
+        sources: resolvedSources,
+        nonWorkingDays: nwd,
+        mode,
+        offset,
+        savedAt: new Date().toISOString(),
+      } satisfies SessionData));
+
       setPhase('review');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
@@ -208,6 +247,7 @@ export function ReconstructorApp() {
     }
 
     setSubmitResults(results);
+    localStorage.removeItem(SESSION_KEY);
     setPhase('done');
   }
 
@@ -270,12 +310,17 @@ export function ReconstructorApp() {
 
       {/* Actions */}
       {(phase === 'idle' || phase === 'review') && (
-        <button
-          onClick={handleReconstruct}
-          className="mb-6 px-4 py-2 bg-brand text-white text-sm font-medium rounded hover:bg-brand-hover"
-        >
-          Reconstruct {range.label}
-        </button>
+        <div className="mb-6 flex items-center gap-3">
+          <button
+            onClick={handleReconstruct}
+            className="px-4 py-2 bg-brand text-white text-sm font-medium rounded hover:bg-brand-hover"
+          >
+            Reconstruct {range.label}
+          </button>
+          {restoredAt && (
+            <span className="text-xs text-zinc-400">Restored from {restoredAt}</span>
+          )}
+        </div>
       )}
 
       {phase === 'reconstructing' && (
